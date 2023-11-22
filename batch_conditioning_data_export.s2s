@@ -1,0 +1,30 @@
+var parent_folder$, file_num%,i% ,b$, file_name$[46], curr_file_id% ,file_output_folder$ ,file_output_name$, extension_id%,matfile_name$;
+
+parent_folder$ := "D:\\ARIZONA BEES for Athil\\learning\\M17Analysis\\ThiagoNeuralynx" ; ' ###change the folder name here
+
+FilePathSet(parent_folder$);   ' setting the parent directory as the current path to get the data
+file_output_folder$ := parent_folder$ + "\\m17_exported\\" ; ' setting the directory for the output path 
+file_num% := FileList(file_name$[],0); ' gettting the number of .smr files inthe current path
+
+for i% := 0 to file_num% - 1 do  ' indexing starts in zero 
+    curr_file_id% := FileOpen(file_name$[i%],0,0); ' opening a single file 
+    
+    ChanSelect(5,1); 'selecting the second channel         ### can get these follwing commands by turning on the script recording on 
+    'ChanSelect(1,1); 'selecting the first channel 
+    ExportChanList(1); 'Export the channel
+    ExportChanList(0,MaxTime(),5); 
+    
+    extension_id% := InStr(file_name$[i%],".SMR"); ' getting the index where .smr starts to rename the file capital and small letter matters
+    matfile_name$ := DelStr$(file_name$[i%],extension_id%,4) + ".mat"; ' deleting the .smr and adding .mat to the filename for export
+    file_output_name$ := file_output_folder$ + matfile_name$; ' attaching the output path info
+    
+    FileSaveAs(file_output_folder$ + matfile_name$,100,0,"",0,
+"UseSName=1|UseCName=1|WaveTimes=1|BinFreq=0|BinTimes=0|WaveData=2|MarkAs=1|TMarkAs=2|RMarkAs=2|RMarkData=2|WaveMarkAs=2|WaveMarkData=2|Compat=0|WaveAll=1|WaveSameN=0"); 
+    ' Act of exporting the .mat file
+    PrintLog("Sucessfuly opened %s\n",file_name$[i%]); 
+    FileClose(); ' closing the file
+next;  ' proceed to next file
+
+Message("Done"); 
+halt;
+
