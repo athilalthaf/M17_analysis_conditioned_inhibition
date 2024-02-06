@@ -1,6 +1,7 @@
 load("Beem17_trim.mat");
 load("m17_conditioning_data.mat")
 load("m17_post_conditioning_data.mat")
+load("m17_sep_tab.mat")
 %%
 stdThSt = 15; 
 stdThFr = 5;
@@ -309,3 +310,69 @@ for i=1:length(boxes)
 end
 title("Latency during conditioning")
 ylabel("time (s)") 
+
+%% All data
+addpath('C:\Users\athil\OneDrive - uni-bielefeld.de\Desktop\Codes\gramm_matlab\gramm')
+whole_activity = cell2mat(m17_sep_tab.act');
+whole_activity_nart = removeArtifact(whole_activity,time_cond_range);
+whole_activity_pw = getPower(whole_activity_nart,dt_ds,fs_ds_cond,tau);
+[response,latency,~] = getResponse(whole_activity_pw,time_cond_range,stdThPw);
+m17_sep_tab.latency = latency;
+m17_sep_tab.response = response;
+
+m17_sep_tab.latency(m17_sep_tab.stage == 'Abs_cond' & m17_sep_tab.latency >=2) = nan;
+
+m17_sep_tab.response(m17_sep_tab.stage == 'Abs_cond' & m17_sep_tab.latency >=2) = 0;
+
+context = m17_sep_tab.stim == m17_sep_tab.PreExp;
+context_arr = strings(size(context));
+context_arr(context) = "familiar";
+context_arr(~context) = "novel";
+context_arr(m17_sep_tab.stim == "M") = "mix";
+
+m17_sep_tab.context = context_arr;
+
+m17_sep_tab.context = categorical(m17_sep_tab.context);
+m17_sep_tab.stage = categorical(m17_sep_tab.stage);
+m17_sep_tab.stim = categorical(m17_sep_tab.stim);
+m17_sep_tab.bee_id = categorical(m17_sep_tab.bee_id);
+m17_sep_tab.PreExp = categorical(m17_sep_tab.PreExp);
+clean_m17 = m17_sep_tab(~isnan(m17_sep_tab.latency),:);
+
+cond_tab  = m17_sep_tab(m17_sep_tab.stage == "Abs_cond",:);
+postcond_tab  = m17_sep_tab(m17_sep_tab.stage == "Post_condtest",:);
+
+
+%%
+figure(1)
+g = gramm('x',m17_sep_tab.trial_num,'y',m17_sep_tab.latency,'color',m17_sep_tab.stage);
+g.facet_grid(m17_sep_tab.stim,[]);
+g.geom_point();
+g.set_title("Latency across trials and phases");
+g.set_names('x','Trial num (#)','y',"Time (s)",'row','Stim','color','Stages');
+
+g.draw(); % 
+
+
+cond_agg = grpstats(cond_tab,["context","trial_num"],["mean","numel"],DataVars="latency");
+cond_agg = cond_agg(cond_agg.context~='mix',:);
+
+postcond_agg = grpstats(postcond_tab,["context","trial_num"],["mean","numel"],DataVars="latency");
+% postcond_agg = cond_agg(postcond_agg.context~='mix',:);
+
+figure(2)
+gr = gramm('x',cond_agg.trial_num,'y',cond_agg.numel_latency,'color',cond_agg.context);
+gr.set_title('PER response during conditioning');
+gr.set_names('x','Trial num (#)','y',"Count (#)",'color','Odour');
+gr.geom_point();
+gr.geom_line();
+gr.draw()
+
+
+figure(3)
+gp = gramm('x',postcond_agg.trial_num,'y',postcond_agg.numel_latency ,'color',postcond_agg.context);
+gp.set_title('PER response after conditioning');
+gp.set_names('x','Trial num (#)','y',"Count (#)",'color','Odour');
+gp.geom_point();
+gp.geom_line();
+gp.draw()
