@@ -158,6 +158,7 @@ COND_START_IDX = zeros(height(Bee_m17_tab),1); % initialise condition phase  sta
 COND_ITEMS= strings(height(Bee_m17_tab),3); % initialse array for conditioning stims 
 COND_ITEM_COUNTS = zeros(height(Bee_m17_tab),3); % respective counts
 COND_TRIAL_NUM = zeros(height(Bee_m17_tab),1); % check the number of elements in conditioning phase
+STAGE_IDX = zeros(height(Bee_m17_tab),4); % initialise a trials where each stages start
 for bee = 1:height(Bee_m17_tab) % 
     bee_timestamps = cell2mat(Bee_m17_tab.timestamp(bee)); %convert every timestamp to matrix
     time_stamp_diff = [0 diff(bee_timestamps)]; % get the first order difference 
@@ -166,6 +167,7 @@ for bee = 1:height(Bee_m17_tab) %
     COND_START_IDX(bee) = time_stamp_stage_idx(3); % starting index for conditioning phase
 %     POST_COND_START_IDX(bee) = find(time_stamp_diff == time_stamp_diff(time_stamp_diff> long_interval)); % 
     POST_COND_START_IDX(bee) = time_stamp_stage_idx(4);  % post conditioning phase starting index
+    STAGE_IDX(bee,:) = time_stamp_stage_idx;
     bee_stim_types = Bee_m17_tab.stim(bee); % get the stim types
     bee_stim_types = bee_stim_types{1}; % access the cell contents 
     bee_stim_cond = bee_stim_types(POST_COND_START_IDX(bee) - cond_num: POST_COND_START_IDX(bee) - 1); % not really relevant
@@ -189,7 +191,7 @@ Bee_m17_tab.cond_num = COND_TRIAL_NUM;  % append a column for
 Bee_m17_tab.cond_items  = COND_ITEMS; % not really relevant but can see the the conditioning phase diagnosis
 Bee_m17_tab.cond_count  = COND_ITEM_COUNTS;
 
-
+Bee_m17_tab.stage_idx = STAGE_IDX;
 %% seperate the timestamps and stim type for the ease of access also adding the pre exposure info
 
 
@@ -202,22 +204,42 @@ bee_id_arr = [];
 stim_num_arr = [];
 trial_num_arr = [];
 act_arr = [];
-
+stage_name_arr = [];
 for entry = 1:height(bee_data_time_stamps)
     bee_id_arr = [bee_id_arr ; repmat(bee_data_time_stamps.bee_id(entry), bee_data_time_stamps.trial_num(entry),1)]; %repeating the beeid to match length
     stim_cell = bee_data_time_stamps.stim(entry); % get the stim types
     stim_arr_sub = stim_cell{:}; % unpack the cell contents
     stimnum_arr_sub = zeros(size(stim_arr_sub));  % trial number of each stim array initialising
     trial_num_arr_sub = 1:size(stim_arr_sub,2); % trial number of overall experiment of each bee
+    
+    stage_name_sub = strings(size(trial_num_arr_sub));   % initializing stage name array
+    stage_info = Bee_m17_tab.stage_idx(entry,:);
+    stage_name_sub(trial_num_arr_sub< stage_info(1)) = "Pre_test";
+    stage_name_sub(trial_num_arr_sub>= stage_info(1) & ...
+        trial_num_arr_sub< stage_info(2)) = "Pre_exp";
+    stage_name_sub(trial_num_arr_sub>= stage_info(2) & ...
+        trial_num_arr_sub< stage_info(3)) = "Post_exptest";
+    stage_name_sub(trial_num_arr_sub>= stage_info(3) & ...
+        trial_num_arr_sub< stage_info(4)) = "Abs_cond";
+    stage_name_sub(trial_num_arr_sub>= stage_info(4) ) = "Post_condtest";
+    
+    
+
+
     for typ = ["A","B","M"] % for each stim types
         stim_arr_sub_id = stim_arr_sub == typ; % get the elements where the stim type matches
         stimnum_arr_sub(stim_arr_sub_id) = 1:sum(stim_arr_sub_id); %  fill the corresponding indices with the range 1:maximum num
     end
+
+    
+
     timestamp_cell = bee_data_time_stamps.timestamp(entry); % get the timestamp cell
     stim_type_arr = [stim_type_arr ; stim_arr_sub']; % appending the arrays
     time_stamp_arr = [time_stamp_arr ; timestamp_cell{:}'];
     stim_num_arr = [stim_num_arr ; stimnum_arr_sub'];
     trial_num_arr = [trial_num_arr; trial_num_arr_sub'];
+    stage_name_arr = [stage_name_arr; stage_name_sub'];
+
     act_sub = Bee_m17_tab.act(entry); % get the activity cell
 %     act_sub = act_sub{:};
     act_sub_ds = downsample(act_sub{:},downsample_num); % downsample it 
@@ -226,8 +248,10 @@ for entry = 1:height(bee_data_time_stamps)
 
 end
 
-m17_sep_tab = table(bee_id_arr,stim_type_arr,trial_num_arr,stim_num_arr,time_stamp_arr,act_arr, ...
-    VariableNames=["bee_id","stim","trial_num","stim_num","time_stamp","act"]); % get a new table with all the new column in the new format
+m17_sep_tab = table(bee_id_arr,stim_type_arr,trial_num_arr,stage_name_arr, ...
+    stim_num_arr,time_stamp_arr,act_arr, ...
+    VariableNames=["bee_id","stim","trial_num","stage","stim_num", ...
+    "time_stamp","act"]); % get a new table with all the new column in the new format
 % save("m17_sep_tab.mat","m17_sep_tab","-v7.3")
 
 bee_ids = unique(m17_sep_tab.bee_id); % get the unique bee ids
@@ -244,6 +268,8 @@ for bee = bee_ids' % for all the ids
    pre_exp_arr = [pre_exp_arr ; repmat(PreExp, height(single_bee_tab),1)]; % append the preExp array
 %   pre_exp_tab = single_bee_tab(single_bee_tab.trial_num >30 & single_bee_tab.trial_num <=70,:);
 %   unique(pre_exp_tab.stim);
+    
+
 end
 m17_sep_tab.PreExp = pre_exp_arr; % add the info to the table 
 
@@ -294,11 +320,12 @@ m17_post_conditioning_data = []; % post conditioning data
 for i = 1:height(Bee_m17_tab) % for each bee
    bee_tab = m17_sep_tab(m17_sep_tab.bee_id == Bee_m17_tab.bee_id(i),:); % get single bee tab
    single_cond_bee_tab = bee_tab(bee_tab.trial_num >= Bee_m17_tab.cond_start_idx(i) & ...
-       bee_tab.trial_num < Bee_m17_tab.post_cond_start_idx(i),:); % get the conditioning trials in that bee
-    m17_conditioning_data = [m17_conditioning_data ; single_cond_bee_tab];  % append to conditioning data
-
-    single_post = bee_tab(bee_tab.trial_num>=Bee_m17_tab.post_cond_start_idx(i),:); % get all the post condiitoning trials in that bee
-    m17_post_conditioning_data = [m17_post_conditioning_data;single_post]; % append the post conditioning 
+   bee_tab.trial_num < Bee_m17_tab.post_cond_start_idx(i),:); % get the conditioning trials in that bee
+   m17_conditioning_data = [m17_conditioning_data ; single_cond_bee_tab];  % append to conditioning data
+    
+   single_post = bee_tab(bee_tab.trial_num>=Bee_m17_tab.post_cond_start_idx(i),:); % get all the post condiitoning trials in that bee
+   m17_post_conditioning_data = [m17_post_conditioning_data;single_post]; % append the post conditioning 
 end 
 save("m17_post_conditioning_data.mat","m17_post_conditioning_data","-v7.3");  % save the data for conditioning and post conditioning
 save("m17_conditioning_data.mat","m17_conditioning_data","-v7.3");
+
