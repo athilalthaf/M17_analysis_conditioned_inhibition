@@ -19,7 +19,7 @@ time_non_cond_range = linspace(-1,time_non_cond-1,fs* time_non_cond);
 
 downsample_num = 20;
 time_cond_range = downsample(time_cond_range,downsample_num);
-
+time_non_cond_range = downsample(time_non_cond_range,downsample_num);
 fs_ds_cond = round(size(time_cond_range,2) / time_cond ); 
 dt_ds = 1/fs_ds_cond;
 cond_range = 20;
@@ -312,23 +312,14 @@ title("Latency during conditioning")
 ylabel("time (s)") 
 
 %% All data
-addpath('C:\Users\athil\OneDrive - uni-bielefeld.de\Desktop\Codes\gramm_matlab\gramm')
-whole_activity = cell2mat(m17_sep_tab.act');
-whole_activity_nart = removeArtifact(whole_activity,time_cond_range);
-whole_activity_pw = getPower(whole_activity_nart,dt_ds,fs_ds_cond,tau);
-[response,latency,~] = getResponse(whole_activity_pw,time_cond_range,stdThPw);
-m17_sep_tab.latency = latency;
-m17_sep_tab.response = response;
-
-m17_sep_tab.latency(m17_sep_tab.stage == 'Abs_cond' & m17_sep_tab.latency >=2) = nan;
-
-m17_sep_tab.response(m17_sep_tab.stage == 'Abs_cond' & m17_sep_tab.latency >=2) = 0;
 
 context = m17_sep_tab.stim == m17_sep_tab.PreExp;
 context_arr = strings(size(context));
 context_arr(context) = "familiar";
 context_arr(~context) = "novel";
 context_arr(m17_sep_tab.stim == "M") = "mix";
+
+
 
 m17_sep_tab.context = context_arr;
 
@@ -337,42 +328,318 @@ m17_sep_tab.stage = categorical(m17_sep_tab.stage);
 m17_sep_tab.stim = categorical(m17_sep_tab.stim);
 m17_sep_tab.bee_id = categorical(m17_sep_tab.bee_id);
 m17_sep_tab.PreExp = categorical(m17_sep_tab.PreExp);
-clean_m17 = m17_sep_tab(~isnan(m17_sep_tab.latency),:);
+% clean_m17 = m17_sep_tab(~isnan(m17_sep_tab.latency),:);
 
+
+
+m17_sep_tab.bee_num =  grp2idx(m17_sep_tab.bee_id);
+
+mixed_stim_ids = m17_sep_tab.bee_id(m17_sep_tab.stage == "Abs_cond" & m17_sep_tab.stim == "M"); % The stims with M during conditions
+m17_sep_tab_clean = m17_sep_tab(~ismember(m17_sep_tab.bee_id,mixed_stim_ids),:);
+
+m17_sep_tab_clean = m17_sep_tab_clean(~(m17_sep_tab_clean.ss_norm_num >10 & m17_sep_tab_clean.stage ~= "Pre_exp"),:);
+
+m17_sep_tab_raw = m17_sep_tab; %% just for all the m17data to be avaiable to cross check
+
+m17_sep_tab = m17_sep_tab_clean;
+addpath('C:\Users\athil\OneDrive - uni-bielefeld.de\Desktop\Codes\gramm_matlab\gramm')
+whole_activity = cell2mat(m17_sep_tab.act');
+whole_activity_nart = removeArtifact(whole_activity,time_cond_range);
+
+whole_activity_pw = getPower(whole_activity_nart,dt_ds,fs_ds_cond,tau);
+THRESH = 4:2:20;
+% figure() %% geting the dimension and position in a desired format 
+% fig_pos_half = get(gcf,'Position') %% after setting the command we will
+% get the bounding box (i guess ) use it for the figure position
+
+
+fig_pos = [-1279 50 1280 907]; %% the postion of the figure second monitor fullscreen
+fig_pos_half  = [-1281 462 1279 486]; % half of the fullscreen
+fig_pos_minimal = [-1116 316 699 603]; 
+plot_path  = "plots\PER_thresh\post_troubleshoot\"; 
+tau = 100;
+for th = 5%THRESH
+[response,latency,cutoff] = getResponse(whole_activity_pw,time_cond_range,th);
+m17_sep_tab.latency = latency;
+m17_sep_tab.response = response;
+longer_cond_latency_idx = m17_sep_tab.stage == 'Abs_cond' & m17_sep_tab.latency >=2;
+m17_sep_tab.latency(longer_cond_latency_idx) = nan;
+
+m17_sep_tab.response(longer_cond_latency_idx) = nan;
+
+m17_sep_tab.resp_num = m17_sep_tab.response .* m17_sep_tab.bee_num; 
+m17_sep_tab.resp_num(m17_sep_tab.resp_num == 0) = nan;
 cond_tab  = m17_sep_tab(m17_sep_tab.stage == "Abs_cond",:);
 postcond_tab  = m17_sep_tab(m17_sep_tab.stage == "Post_condtest",:);
+precond_tab  = m17_sep_tab(m17_sep_tab.stage == "Post_exptest",:);
 
-
-%%
-figure(1)
-g = gramm('x',m17_sep_tab.trial_num,'y',m17_sep_tab.latency,'color',m17_sep_tab.stage);
+figure();
+set(gcf,'Position',fig_pos);
+g = gramm('x',m17_sep_tab.trial_num,'y',m17_sep_tab.resp_num,'color',m17_sep_tab.context);
 g.facet_grid(m17_sep_tab.stim,[]);
 g.geom_point();
-g.set_title("Latency across trials and phases");
-g.set_names('x','Trial num (#)','y',"Time (s)",'row','Stim','color','Stages');
+g.set_title(sprintf("PER across trials and odour context (thresh= %d,tau= %d)",th,tau));
+g.set_names('x','Trial num (#)','y',"Bee num (#)",'row','Stim','color','Context');
+g.geom_vline('xintercept',[30.5,70.5,100.5,120.5],'style','--k')
+g.draw(); %
+export_path = "D:\ARIZONA BEES for Athil\learning\M17Analysis\M17_analysis_conditioned_inhibition\plots\PER_thresh";
+saveas(gcf,plot_path + sprintf("overall_per_thresh_%d_tau_%d.png",th,tau))
 
-g.draw(); % 
+figure();
+set(gcf,'Position',fig_pos_minimal);
+g = gramm('x',m17_sep_tab.ss_norm_num,'y',m17_sep_tab.resp_num,'color',m17_sep_tab.context,'subset',m17_sep_tab.stage~="Pre_exp" & m17_sep_tab.stage~="Pre_test");
+g.facet_grid(m17_sep_tab.stim,m17_sep_tab.stage);
+g.set_order_options("column",["Pre_test","Pre_exp","Post_exptest","Abs_cond","Post_condtest"])
+g.geom_point();
+g.set_title(sprintf("PER across trials and odour context (thresh= %d,tau= %d)",th,tau));
+g.set_names('x','Trial num (#)','y',"Bee num (#)",'row','Stim','color','Context','column',"stage");
+% g.geom_vline('xintercept',[30.5,70.5,100.5,120.5],'style','--k')
+g.draw(); %
+% export_path = "D:\ARIZONA BEES for Athil\learning\M17Analysis\M17_analysis_conditioned_inhibition\plots\PER_thresh";
+% 
+saveas(gcf,plot_path + sprintf("phase2_per_thresh_%d_tau_%d.png",th,tau))
 
 
-cond_agg = grpstats(cond_tab,["context","trial_num"],["mean","numel"],DataVars="latency");
-cond_agg = cond_agg(cond_agg.context~='mix',:);
+figure()
+set(gcf,'Position',fig_pos_minimal);
 
-postcond_agg = grpstats(postcond_tab,["context","trial_num"],["mean","numel"],DataVars="latency");
-% postcond_agg = cond_agg(postcond_agg.context~='mix',:);
+agg = grpstats(m17_sep_tab,["stage","stim","context","ss_norm_num"],["mean","numel"],DataVars="resp_num");
+gr = gramm('x',agg.ss_norm_num,'y',agg.numel_resp_num,'color',agg.context,'subset',agg.stage~="Pre_exp" & agg.stage~="Pre_test");
 
-figure(2)
-gr = gramm('x',cond_agg.trial_num,'y',cond_agg.numel_latency,'color',cond_agg.context);
-gr.set_title('PER response during conditioning');
-gr.set_names('x','Trial num (#)','y',"Count (#)",'color','Odour');
+gr.set_order_options('column',["Post_exptest","Abs_cond","Post_condtest"]);
+
+gr.set_names('x','Trial num (#)','y',"Count (#)",'row','Stim','color','Context','column',"Stage");
+gr.facet_grid(categorical(agg.stim),categorical(agg.stage));
+
+gr.set_title(sprintf("PER Response  (thresh= %d, tau= %d)",th,tau));
+% gr.set_text_options(facet_scaling=1)
 gr.geom_point();
 gr.geom_line();
-gr.draw()
+gr.draw();
+saveas(gcf,plot_path + sprintf("per_count_th_%d_tau_%d.png",th,tau));
 
 
-figure(3)
-gp = gramm('x',postcond_agg.trial_num,'y',postcond_agg.numel_latency ,'color',postcond_agg.context);
-gp.set_title('PER response after conditioning');
-gp.set_names('x','Trial num (#)','y',"Count (#)",'color','Odour');
-gp.geom_point();
-gp.geom_line();
-gp.draw()
+
+figure()
+set(gcf,'Position',fig_pos_half);
+
+agg = grpstats(m17_sep_tab,["stage","context","ss_norm_num"],["mean","numel"],DataVars="resp_num");
+gr = gramm('x',agg.ss_norm_num,'y',agg.numel_resp_num,'color',agg.context,'subset',agg.stage~="Pre_exp" & agg.stage~="Pre_test");
+
+gr.set_order_options('column',["Post_exptest","Abs_cond","Post_condtest"]);
+
+gr.set_names('x','Trial num (#)','y',"Count (#)",'color','Context','column',"Stage");
+gr.facet_grid([],categorical(agg.stage));
+
+gr.set_title(sprintf("PER Response  (thresh= %d,tau= %d)",th,tau));
+% gr.set_text_options(facet_scaling=1)
+gr.geom_point();
+gr.geom_line();
+gr.set_text_options('font','Helvetica');
+gr.draw();
+saveas(gcf,plot_path + sprintf("per_count_total_th_%d_tau_%d.png",th,tau));
+
+
+
+end
+
+%% troubleshooting 
+
+% tab_check = m17_sep_tab(m17_sep_tab.latency <= 0.5 & m17_sep_tab.stage == "Abs_cond",:);
+cutoff_trial_num = 5;
+% tab_check = m17_sep_tab(m17_sep_tab.ss_norm_num <= cutoff_trial_num & m17_sep_tab.stage == "Abs_cond" ...
+%                         & ~isnan(m17_sep_tab.resp_num) ,:); 
+% tab_check = tab_check(1:40,:);
+% th = 15;
+% tau = 100;
+% 
+onset_set_path = "plots\onset_detection_abscond\";
+
+% m17_sep_dat = cell2mat(m17_sep_tab.act');
+% 
+% check_data_nart = removeArtifact(m17_sep_dat,time_cond_range);
+% % whole_activity_pw = getPower(whole_activity_nart,dt_ds,fs_ds_cond,tau);
+% m17_sep_pw = getPower(check_data_nart,dt_ds,fs_ds_cond,tau);
+% [response,latency,cutoff] = getResponse(m17_sep_pw,time_cond_range,th);
+% m17_sep_tab.latency = latency;
+% m17_sep_tab.response = response;
+% m17_sep_tab.response(m17_sep_tab.response == 0) = nan;
+% longer_cond_latency_idx = m17_sep_tab.latency >= 2 & m17_sep_tab.stage == "Abs_cond";
+% 
+% m17_sep_tab.latency(longer_cond_latency_idx) = nan;
+% m17_sep_tab.response(longer_cond_latency_idx) = nan;
+% m17_sep_tab.resp_num  = m17_sep_tab.bee_num .* m17_sep_tab.response ;
+% 
+% stage_checked = "Abs_cond";
+% check_conditions = m17_sep_tab.stage == stage_checked & isnan(m17_sep_tab.latency);
+% tab_check = m17_sep_tab(check_conditions,:);
+% m17_sep_dat = m17_sep_dat(:,check_conditions);
+% m17_sep_pw = m17_sep_pw(:,check_conditions);
+% cutoff = cutoff(check_conditions);
+% sample_plot_num = 20;
+stage_needed = 'Abs_cond';
+bee_id_needed = 'bee146';
+
+stage_and_id = m17_sep_tab.bee_id == bee_id_needed & m17_sep_tab.stage == stage_needed;
+ss_norm_num_max = 10;
+subplot_num = 20;
+fg1= figure(1);
+set(fg1,'Position',fig_pos);
+% tiledlayout(sample_plot_num,1,"TileSpacing",'none');
+tiledlayout(ss_norm_num_max,2,'TileSpacing','compact');
+
+bee_tab =sortrows(m17_sep_tab(stage_and_id,:),{'ss_norm_num','stim'});
+current_bee_num = bee_tab.bee_num(1);
+current_bee_exp = bee_tab.PreExp(1);
+th = 3;
+
+[bee_tab_processed,pw] = add_latency_and_response(bee_tab,th,tau,true);
+% bee_tab_processed = sortrows(bee_tab_processed,"stim");
+for idx= 1:subplot_num
+    nexttile;
+
+    sp = plot(time_cond_range,cell2mat(bee_tab_processed.act(idx))',LineWidth=1);
+    xline(bee_tab_processed.latency(idx),"-r",'LineWidth',2);
+%     xline(onset_thresh(idx),"-m",'LineWidth',1.5)
+    ylabel(sprintf('stim %s, trial num %d',bee_tab_processed.stim(idx),bee_tab_processed.ss_norm_num(idx)),HorizontalAlignment="right",Rotation=0);
+%     ylh = get(sp,'ylabel'); 
+%     ylp = get(ylh,'Position');
+%     set(ylh,Posi)
+    ylim([-2 * 10^(-3) 2*10^(-3)]);
+    yyaxis right
+    h = plot(time_cond_range,pw(:,idx)');
+    set(h,'Color',[h.Color, 1]);
+    yline(bee_tab_processed.cutoff(idx),"-k",'LineWidth',1)
+    xlim([-1 6]);
+
+%     ylabel()
+%     xticks([])
+%     title("trial no: " + num2str(idx) + "stim: "+  Bee_m17_cond(fl).stim(idx))
+%     title(num2str(idx)+ "; " + Bee_m17_cond(fl).stim(idx))
+%     sgtitle(Bee_m17_cond(fl).bee_id +  "; tau =" + num2str(tau) + ";  pw thresh =" + num2str(th) )
+    
+end
+
+% f1 =figure()
+% set(gcf,'Position',fig_pos)
+% sp = stackedplot(time_cond_range,act_data)
+% sp.DisplayLabels = string(tab_check.bee_id) +" "+ string(tab_check.stim) +" " +string(tab_check.ss_norm_num) 
+% 
+
+sgtitle(sprintf("id = %s stage= %s,  thresh= %d  , tau= %d",bee_id_needed,replace(stage_checked,"_"," "),th,tau))
+xlabel("time (s)")
+
+onset_detected = length(bee_tab_processed.latency(~isnan(bee_tab_processed.latency)));
+per_detected = length(bee_tab_processed.latency(bee_tab_processed.latency<2));
+sprintf("onsets detected : %d \nper detected : %d",onset_detected,per_detected)
+saveas(fg1,onset_set_path + sprintf("%s_stage_%s.png",stage_needed, bee_id_needed));
+
+
+mini_fig_pos = [-771   448   717   148];
+fg2 = figure(2);
+set(fg2,'Position',mini_fig_pos);
+single_bee_tab = m17_sep_tab(m17_sep_tab.bee_id == bee_id_needed,:);
+single_bee_tab_process = add_latency_and_response(single_bee_tab,th,tau,false);
+gscatter(single_bee_tab_process.trial_num,single_bee_tab_process.response,single_bee_tab_process.context);
+
+title(sprintf("id : %s, th = %d, tau = %d, exp = %s",bee_id_needed,th,tau,current_bee_exp));
+yticks([]);
+ylabel(sprintf("# %d",current_bee_num));
+xlim([0,151]);
+xline([30.5,70.5,100.5,120.5])
+legend("Location","eastoutside");
+saveas(fg2,onset_set_path + sprintf("allstage_%s.png", bee_id_needed));
+
+% ax = findobj(sp.NodeChildren,"Type","Axes")
+% arrayfun(@(h,x) xline(h,x,'color','r','LineWidth',1.5,'Alpha',.6),ax,tab_check.latency)
+%% threshold tuned
+thresh_list = readtable("thresh_list.xlsx");
+thresh_list.bee_id = categorical(thresh_list.bee_id);
+vnames = ["bee_id"	"stim"	"trial_num"	"stage"	"stim_num"	"ss_norm_num"	"time_stamp"	"act"	"PreExp"	"context"	"bee_num"	"latency"	"response"	"resp_num"	"cutoff"];
+allbee_processed_tab  = array2table(nan(0,length(vnames)),'VariableNames',vnames);
+allbee_processed_tab = convertvars(allbee_processed_tab,["bee_id","stim","stage","PreExp","context"],'categorical');
+
+for entry = 1:height(thresh_list)
+   single_bee_tab = m17_sep_tab(m17_sep_tab.bee_id == thresh_list.bee_id(entry),:);
+   single_bee_tab_process  = add_latency_and_response(single_bee_tab,thresh_list.th(entry),tau,false);
+   allbee_processed_tab  = [allbee_processed_tab ; single_bee_tab_process];
+end
+
+% save(allbee_processed_tab,)
+%% overall plots after separate thresholding
+
+close all
+fg1 =  figure(1);
+set(fg1,'Position',fig_pos);
+
+allbee_gramm = gramm('x',allbee_processed_tab.trial_num,'y',allbee_processed_tab.resp_num,'color',allbee_processed_tab.context);
+allbee_gramm.facet_grid(allbee_processed_tab.stim,[]);
+allbee_gramm.geom_point();
+allbee_gramm.set_title(sprintf("PER across trials and odour context"));
+allbee_gramm.set_names('x','Trial num (#)','y',"Bee num (#)",'row','Stim','color','Context');
+allbee_gramm.geom_vline('xintercept',[30.5,70.5,100.5,120.5],'style','--k');
+allbee_gramm.draw(); %
+
+% agg_allbee = 
+
+fg2 = figure(2);
+set(gcf,'Position',fig_pos_minimal);
+
+agg = grpstats(allbee_processed_tab,["stage","stim","context","ss_norm_num"],["mean","numel"],DataVars="resp_num");
+gr = gramm('x',agg.ss_norm_num,'y',agg.numel_resp_num,'color',agg.context,'subset',agg.stage~="Pre_exp" & agg.stage~="Pre_test");
+
+gr.set_order_options('column',["Post_exptest","Abs_cond","Post_condtest"]);
+
+gr.set_names('x','Trial num (#)','y',"Count (#)",'row','Stim','color','Context','column',"Stage");
+gr.facet_grid(categorical(agg.stim),categorical(agg.stage));
+
+gr.set_title(sprintf("PER Response"));
+% gr.set_text_options(facet_scaling=1)
+gr.geom_point();
+gr.geom_line();
+gr.draw();
+
+fg3 = figure(3);
+set(fg3,'Position',fig_pos_half);
+
+agg2 = grpstats(allbee_processed_tab,["stage","context","ss_norm_num"],["mean","numel"],DataVars="resp_num");
+
+g3 = gramm('x',agg2.ss_norm_num,'y',(agg2.numel_resp_num ./ agg2.GroupCount) * 100,'color',agg2.context,'subset',agg2.stage~="Pre_exp" & agg2.stage~="Pre_test");
+
+g3.set_order_options('column',["Post_exptest","Abs_cond","Post_condtest"]);
+
+g3.set_names('x','Trial num (#)','y'," % response",'color','Context','column',"Stage");
+g3.facet_grid([],categorical(agg2.stage));
+
+g3.set_title(sprintf("PER Response",th,tau));
+% gr.set_text_options(facet_scaling=1)
+g3.geom_point();
+g3.geom_line();
+% gr.set_text_options('font','Helvetica');
+g3.draw();
+%%
+fg4 = figure(4);
+set(fg4,'Position',fig_pos_minimal)
+g4 = gramm('x',allbee_processed_tab.ss_norm_num,'y',allbee_processed_tab.latency,'color',allbee_processed_tab.context,'subset',allbee_processed_tab.stage~="Pre_exp" & allbee_processed_tab.stage~="Pre_test");
+g4.set_order_options('column',["Post_exptest","Abs_cond","Post_condtest"]);
+
+g4.facet_grid(allbee_processed_tab.stim,allbee_processed_tab.stage);
+g4.set_names('x','Trial num (#)','y'," latency (s)",'color','Context','column',"Stage",'row',"stim");
+% g4.geom_point();
+g4.stat_summary('type','ci','geom','line');
+g4.geom_point('alpha',.5);
+g4.draw()
+
+%% 
+fg5 = figure(5);
+set(fg5,'Position',fig_pos_half);
+g5 = gramm('x',allbee_processed_tab.ss_norm_num,'y',allbee_processed_tab.latency,'color',allbee_processed_tab.context,'subset',allbee_processed_tab.stage~="Pre_exp" & allbee_processed_tab.stage~="Pre_test");
+g5.set_order_options('column',["Post_exptest","Abs_cond","Post_condtest"]);
+
+g5.facet_grid([],allbee_processed_tab.stage);
+g5.set_names('x','Trial num (#)','y'," latency (s)",'color','Context','column',"Stage");
+% g4.geom_point();
+g5.stat_summary('type','ci','geom','area');
+g5.geom_point('alpha',.5);
+% g5.stat_summary('geom','errorbar');
+g5.draw()
