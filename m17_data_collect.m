@@ -148,7 +148,7 @@ Bee_m17_tab = struct2table(Bee_m17);
 trial_len = cellfun(@length, Bee_m17_tab.stim); % get the total trial numbers of each experiment
 Bee_m17_tab.trial_num = trial_len; % get a new column with trial length
  
-Bee_m17_tab = Bee_m17_tab(Bee_m17_tab.trial_num>=150,:); % exclude every thing that has not made till the end
+Bee_m17_tab = Bee_m17_tab(Bee_m17_tab.trial_num>=149,:); % exclude every thing that has not made till the end
 cond_num = 20;
 time_diff_cutoff = 200; % time threshold to get the different phases
 long_interval = 30*60; % 
@@ -196,9 +196,10 @@ Bee_m17_tab.stage_idx = STAGE_IDX;
 
 
 bee_data_time_stamps = Bee_m17_tab(:,["bee_id","stim","timestamp","trial_num","cond_items","cond_count"]); % get the table without activity for easier manipulation 
-
+stages = ["Pre_test","Pre_exp","Post_exptest","Abs_cond","Post_condtest"]; %stage names for ease of use;
 % total_entry_length = sum(bee_data_time_stamps.trial_num); 
 time_stamp_arr = []; % initialising a set of arrays for the restructured table not elegant way but it works
+stage_num_arr = [];
 stim_type_arr = []; 
 bee_id_arr = [];
 stim_num_arr = [];
@@ -209,26 +210,33 @@ for entry = 1:height(bee_data_time_stamps)
     bee_id_arr = [bee_id_arr ; repmat(bee_data_time_stamps.bee_id(entry), bee_data_time_stamps.trial_num(entry),1)]; %repeating the beeid to match length
     stim_cell = bee_data_time_stamps.stim(entry); % get the stim types
     stim_arr_sub = stim_cell{:}; % unpack the cell contents
+    
     stimnum_arr_sub = zeros(size(stim_arr_sub));  % trial number of each stim array initialising
+    stage_arr_sub = zeros(size(stim_arr_sub)); 
     trial_num_arr_sub = 1:size(stim_arr_sub,2); % trial number of overall experiment of each bee
     
     stage_name_sub = strings(size(trial_num_arr_sub));   % initializing stage name array
     stage_info = Bee_m17_tab.stage_idx(entry,:);
-    stage_name_sub(trial_num_arr_sub< stage_info(1)) = "Pre_test";
+    stage_name_sub(trial_num_arr_sub< stage_info(1)) = stages(1);
     stage_name_sub(trial_num_arr_sub>= stage_info(1) & ...
-        trial_num_arr_sub< stage_info(2)) = "Pre_exp";
+        trial_num_arr_sub< stage_info(2)) = stages(2);
     stage_name_sub(trial_num_arr_sub>= stage_info(2) & ...
-        trial_num_arr_sub< stage_info(3)) = "Post_exptest";
+        trial_num_arr_sub< stage_info(3)) = stages(3);
     stage_name_sub(trial_num_arr_sub>= stage_info(3) & ...
-        trial_num_arr_sub< stage_info(4)) = "Abs_cond";
-    stage_name_sub(trial_num_arr_sub>= stage_info(4) ) = "Post_condtest";
+        trial_num_arr_sub< stage_info(4)) = stages(4);
+    stage_name_sub(trial_num_arr_sub>= stage_info(4) ) = stages(5);
     
     
-
+    
 
     for typ = ["A","B","M"] % for each stim types
         stim_arr_sub_id = stim_arr_sub == typ; % get the elements where the stim type matches
         stimnum_arr_sub(stim_arr_sub_id) = 1:sum(stim_arr_sub_id); %  fill the corresponding indices with the range 1:maximum num
+        
+        for stg = stages
+            stg_id = (stg == stage_name_sub) & stim_arr_sub_id; % get the stim type and the stage type indices
+            stage_arr_sub(stg_id) = 1:sum(stg_id); % fill the corresponding array with 
+        end
     end
 
     
@@ -237,6 +245,8 @@ for entry = 1:height(bee_data_time_stamps)
     stim_type_arr = [stim_type_arr ; stim_arr_sub']; % appending the arrays
     time_stamp_arr = [time_stamp_arr ; timestamp_cell{:}'];
     stim_num_arr = [stim_num_arr ; stimnum_arr_sub'];
+    stage_num_arr = [stage_num_arr; stage_arr_sub'];
+
     trial_num_arr = [trial_num_arr; trial_num_arr_sub'];
     stage_name_arr = [stage_name_arr; stage_name_sub'];
 
@@ -249,8 +259,8 @@ for entry = 1:height(bee_data_time_stamps)
 end
 
 m17_sep_tab = table(bee_id_arr,stim_type_arr,trial_num_arr,stage_name_arr, ...
-    stim_num_arr,time_stamp_arr,act_arr, ...
-    VariableNames=["bee_id","stim","trial_num","stage","stim_num", ...
+    stim_num_arr,stage_num_arr,time_stamp_arr,act_arr, ...
+    VariableNames=["bee_id","stim","trial_num","stage","stim_num","ss_norm_num" ...
     "time_stamp","act"]); % get a new table with all the new column in the new format
 % save("m17_sep_tab.mat","m17_sep_tab","-v7.3")
 
@@ -272,7 +282,7 @@ for bee = bee_ids' % for all the ids
 
 end
 m17_sep_tab.PreExp = pre_exp_arr; % add the info to the table 
-
+save("m17_sep_tab.mat","m17_sep_tab","-v7.3") % save the data
 %% get the 
 
 
