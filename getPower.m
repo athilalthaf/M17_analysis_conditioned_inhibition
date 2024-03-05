@@ -12,3 +12,11 @@ function power = getPower(data,dt,fs,tau) %## added fs for  taking account of do
    power=filter(k,1,data.^2);  
    
 end
+
+
+
+
+
+
+
+
