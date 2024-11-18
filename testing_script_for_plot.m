@@ -51,12 +51,13 @@ non_cond_resp_tab = allbee_processed_tab(resp_non_cond,:);
 
 act = cell2mat(allbee_processed_tab.act');
 filt = getLowpassfiltered(allbee_processed_tab,600,fs_ds_cond);
-
-[act_hampel,outmat] = getMedianandOutlier(filt,round(fs_ds_cond/2),5);
+time_window = 500;
+time_window_sample = time2sample(time_window,fs_ds_cond);
+[act_hampel,outmat] = getMedianandOutlier(filt,round(time_window_sample/2),5);  %% sample in # 
 
 outmat(isnan(filt)) = 0;
 
-integ_out = getWindowIntegrate(outmat,500,fs_ds_cond);
+integ_out = getWindowIntegrate(outmat,time_window,fs_ds_cond);
 
 integ_out(isnan(filt)) = nan;
 
@@ -82,6 +83,29 @@ allbee_integ_response = allbee_processed_tab(~isnan(allbee_processed_tab.respons
 allbee_processed_tab(~isnan(allbee_processed_tab.response),:) = allbee_latencytab;
 
 allbee_processed_tab.latency(isnan(allbee_processed_tab.response)) = nan;
+
+
+
+%%
+
+
+idx = 3;
+tiledlayout(3,1,'TileSpacing','compact')
+nexttile;
+plot(time_cond_range,act_non_cond(:,idx),Color=[.7 .7 .7]);
+xlim([-.5,4]); 
+xline(latency(idx),Color='r')
+hold on ; plot(time_cond_range,act_hampel_non_cond(:,idx),Color='k');
+xlim([-.5,4]);
+hold off;
+nexttile;
+plot(time_cond_range,integ_non_cond(:,idx),"Color",'k');
+xlim([-.5,4]);
+%nexttile;plot(time_cond_range,outmat(:,idx));xlim([-1,4])
+nexttile;
+plot(time_cond_range,act_hampw(:,idx),Color='k');
+xlim([-.5,4]);
+yline(cutoff(idx),Color='r');
 
 
 
