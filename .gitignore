@@ -8,3 +8,5 @@
 # script autosave
 
 *.asv
+*.pdf
+*.log
