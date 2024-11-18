@@ -1,5 +1,5 @@
 % function power = getPower(data,dt,tau)
-function power = getPower(data,dt,fs,tau) %## added fs for  taking account of downsampling
+function power = getPower(data,fs,tau) %## added fs for  taking account of downsampling
 %    kwidth = 500; % kernel width in ms
    kwidth = .5; %## kernel width in s 
 %    t = 0:dt*1000:kwidth;
